@@ -138,9 +138,10 @@
             z-index: 50;
         }
 
-        /* Scale down the entire application by 10% total */
+        /* Removed static transform, handled by JS for dynamic scaling */
         #root {
-            transform: scale(0.90);
+            transition: transform 0.1s ease-out;
+            transform-origin: center center;
         }
     </style>
 </head>
@@ -210,6 +211,39 @@
             const customAudioRef = useRef(null);
 
             const activeTimer = timers[activeTabIndex];
+
+            // --- Dynamic Scaling Hook ---
+            useEffect(() => {
+                const handleResize = () => {
+                    const root = document.getElementById('root');
+                    if (!root) return;
+
+                    const windowHeight = window.innerHeight;
+                    const thresholdHeight = 900; // Height where we start shrinking below 0.9
+                    
+                    const baseScale = 0.90; // Current size
+                    const minScale = baseScale * 0.8; // 80% of current size (0.72)
+
+                    let newScale = baseScale;
+
+                    if (windowHeight < thresholdHeight) {
+                        // Calculate ratio based on available height
+                        const ratio = windowHeight / thresholdHeight;
+                        // Apply ratio to base scale
+                        newScale = baseScale * ratio;
+                    }
+
+                    // Clamp scale: Max 0.90, Min 0.72
+                    newScale = Math.min(baseScale, Math.max(minScale, newScale));
+                    
+                    root.style.transform = `scale(${newScale})`;
+                };
+
+                window.addEventListener('resize', handleResize);
+                handleResize(); // Initial trigger
+
+                return () => window.removeEventListener('resize', handleResize);
+            }, []);
 
             useEffect(() => {
                 const tick = setInterval(() => setCurrentTime(new Date()), 1000);
