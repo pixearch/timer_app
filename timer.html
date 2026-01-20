@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Pomodoro Timer</title>
+    <!-- React Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Digital Font: Share Tech Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* Default Theme: Orange */
+            --theme-color: #ff9f00; 
+            --theme-glow: rgba(255, 159, 0, 0.5);
+            --theme-dim: rgba(255, 159, 0, 0.1);
+        }
+
+        body {
+            background-color: #050505;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--theme-color);
+            overflow-x: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            transition: color 0.3s ease;
+        }
+        
+        /* Theme-aware scrollbars */
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+        
+        .glow-text {
+            text-shadow: 0 0 5px var(--theme-glow), 0 0 10px var(--theme-dim);
+        }
+
+        .glow-box {
+            box-shadow: 0 0 15px var(--theme-dim), inset 0 0 20px rgba(0,0,0,0.5);
+            border: 3px solid var(--theme-color);
+            background-color: #000;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .inner-box {
+            border: 2px solid var(--theme-color);
+            background-color: var(--theme-dim);
+            transition: border-color 0.3s ease, background-color 0.3s ease;
+        }
+
+        .btn-digital {
+            background-color: #1a1a1a;
+            border: 2px solid var(--theme-color);
+            color: var(--theme-color);
+            transition: all 0.1s;
+            text-transform: uppercase;
+            box-shadow: 0 0 5px var(--theme-dim);
+            font-family: 'Share Tech Mono', monospace;
+            letter-spacing: 1px;
+        }
+        .btn-digital:active {
+            background-color: var(--theme-color);
+            color: #000;
+            box-shadow: 0 0 15px var(--theme-glow);
+        }
+        .btn-digital:hover {
+            box-shadow: 0 0 10px var(--theme-glow);
+        }
+
+        /* Dynamic Input Borders */
+        .theme-border {
+            border-color: var(--theme-color);
+            color: var(--theme-color);
+            transition: border-color 0.3s ease, color 0.3s ease;
+        }
+        .theme-border:focus {
+            outline: none;
+            box-shadow: 0 0 5px var(--theme-glow);
+        }
+        
+        /* Select Dropdown Styling */
+        select {
+            background-color: #000;
+            border-color: var(--theme-color);
+            color: var(--theme-color);
+        }
+
+        .scanline {
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.1) 50%,
+                rgba(0,0,0,0.1)
+            );
+            background-size: 100% 4px;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body>
+    <div id="root" class="w-full flex justify-center p-2 sm:p-4"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const CUSTOM_LIBRARY = [
+            { 
+                id: 'preset_coin', 
+                name: 'Example: 8-Bit Coin', 
+                url: 'data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAAABmYWN0BAAAAAAAAABkYXRhAAAAAA==' 
+            },
+        ];
+
+        const THEMES = {
+            orange: { color: '#ff9f00', glow: 'rgba(255, 159, 0, 0.5)', dim: 'rgba(255, 159, 0, 0.1)' },
+            red:    { color: '#ff003c', glow: 'rgba(255, 0, 60, 0.5)',   dim: 'rgba(255, 0, 60, 0.1)' },
+            green:  { color: '#00ff41', glow: 'rgba(0, 255, 65, 0.5)',   dim: 'rgba(0, 255, 65, 0.1)' },
+            blue:   { color: '#00f0ff', glow: 'rgba(0, 240, 255, 0.5)',  dim: 'rgba(0, 240, 255, 0.1)' },
+            pink:   { color: '#ff00ff', glow: 'rgba(255, 0, 255, 0.5)',  dim: 'rgba(255, 0, 255, 0.1)' },
+            purple: { color: '#bc13fe', glow: 'rgba(188, 19, 254, 0.5)', dim: 'rgba(188, 19, 254, 0.1)' }
+        };
+
+        const COMMON_TIMEZONES = [
+            'UTC',
+            'Pacific/Honolulu',
+            'America/Anchorage',
+            'America/Los_Angeles',
+            'America/Denver',
+            'America/Phoenix',
+            'America/Chicago',
+            'America/Mexico_City',
+            'America/New_York',
+            'America/Toronto',
+            'America/Bogota',
+            'America/Caracas',
+            'America/Santiago',
+            'America/Sao_Paulo',
+            'America/Argentina/Buenos_Aires',
+            'America/St_Johns',
+            'Atlantic/Azores',
+            'Europe/London',
+            'Europe/Dublin',
+            'Europe/Lisbon',
+            'Europe/Paris',
+            'Europe/Berlin',
+            'Europe/Madrid',
+            'Europe/Rome',
+            'Europe/Amsterdam',
+            'Europe/Brussels',
+            'Europe/Vienna',
+            'Europe/Warsaw',
+            'Europe/Zurich',
+            'Europe/Athens',
+            'Europe/Helsinki',
+            'Europe/Istanbul',
+            'Europe/Moscow',
+            'Africa/Cairo',
+            'Africa/Johannesburg',
+            'Africa/Lagos',
+            'Asia/Dubai',
+            'Asia/Tehran',
+            'Asia/Karachi',
+            'Asia/Kolkata',
+            'Asia/Dhaka',
+            'Asia/Bangkok',
+            'Asia/Jakarta',
+            'Asia/Shanghai',
+            'Asia/Hong_Kong',
+            'Asia/Singapore',
+            'Asia/Manila',
+            'Asia/Taipei',
+            'Asia/Seoul',
+            'Asia/Tokyo',
+            'Australia/Perth',
+            'Australia/Adelaide',
+            'Australia/Sydney',
+            'Australia/Melbourne',
+            'Australia/Brisbane',
+            'Pacific/Auckland',
+            'Pacific/Fiji'
+        ];
+
+        // --- Audio Engine ---
+        const audioCtxRef = { current: null };
+        const getAudioContext = () => {
+            if (!audioCtxRef.current) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) audioCtxRef.current = new AudioContext();
+            }
+            return audioCtxRef.current;
+        };
+
+        const playTone = (type) => {
+            const ctx = getAudioContext();
+            if (!ctx) return;
+            if (ctx.state === 'suspended') ctx.resume();
+            const now = ctx.currentTime;
+            
+            const osc = (freq, type, start, dur, vol = 0.5) => {
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.type = type;
+                o.frequency.setValueAtTime(freq, start);
+                g.gain.setValueAtTime(vol, start);
+                g.gain.exponentialRampToValueAtTime(0.01, start + dur);
+                o.connect(g);
+                g.connect(ctx.destination);
+                o.start(start);
+                o.stop(start + dur);
+            };
+
+            switch (type) {
+                case 'alarm':
+                    osc(880, 'square', now, 0.1, 0.3); osc(880, 'square', now + 0.15, 0.1, 0.3);
+                    osc(880, 'square', now + 0.3, 0.1, 0.3); osc(880, 'square', now + 0.45, 0.1, 0.3);
+                    break;
+                case 'digital': osc(2000, 'sine', now, 0.1, 0.2); osc(1500, 'sine', now + 0.1, 0.4, 0.2); break;
+                case 'chime': osc(440, 'triangle', now, 1.0, 0.3); osc(554, 'triangle', now, 1.0, 0.3); osc(659, 'triangle', now, 1.0, 0.3); break;
+                case 'zen': osc(200, 'sine', now, 2.0, 0.5); break;
+                case 'retro': 
+                    const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = 'sawtooth';
+                    o.frequency.setValueAtTime(110, now); o.frequency.linearRampToValueAtTime(880, now + 0.5);
+                    g.gain.setValueAtTime(0.3, now); g.gain.linearRampToValueAtTime(0, now + 0.5);
+                    o.connect(g); g.connect(ctx.destination); o.start(now); o.stop(now + 0.5);
+                    break;
+                case 'preset_coin': osc(987, 'square', now, 0.1, 0.1); osc(1318, 'square', now + 0.1, 0.3, 0.1); break;
+            }
+        };
+
+        const App = () => {
+            const [hours, setHours] = useState(0);
+            const [minutes, setMinutes] = useState(25);
+            const [seconds, setSeconds] = useState(0);
+            const [timeLeft, setTimeLeft] = useState(25 * 60);
+            const [initialTime, setInitialTime] = useState(25 * 60);
+            const [isRunning, setIsRunning] = useState(false);
+            const [isRinging, setIsRinging] = useState(false);
+            const [soundType, setSoundType] = useState('alarm');
+            const [customFile, setCustomFile] = useState(null);
+            
+            // Theme State
+            const [currentTheme, setCurrentTheme] = useState('orange');
+
+            // Real Time State
+            const [timeZone, setTimeZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+            const [currentTime, setCurrentTime] = useState(new Date());
+
+            const timerRef = useRef(null);
+            const alarmIntervalRef = useRef(null);
+            const customAudioRef = useRef(null);
+
+            // Real Time Clock Ticker
+            useEffect(() => {
+                const tick = setInterval(() => {
+                    setCurrentTime(new Date());
+                }, 1000);
+                return () => clearInterval(tick);
+            }, []);
+
+            // Apply Theme
+            useEffect(() => {
+                const root = document.documentElement;
+                const theme = THEMES[currentTheme];
+                root.style.setProperty('--theme-color', theme.color);
+                root.style.setProperty('--theme-glow', theme.glow);
+                root.style.setProperty('--theme-dim', theme.dim);
+            }, [currentTheme]);
+
+            const calculateTotalSeconds = (h, m, s) => (parseInt(h || 0) * 3600) + (parseInt(m || 0) * 60) + parseInt(s || 0);
+
+            const formatDisplay = (sec) => {
+                const h = Math.floor(sec / 3600);
+                const m = Math.floor((sec % 3600) / 60);
+                const s = sec % 60;
+                return {
+                    h: h.toString().padStart(2, '0'),
+                    m: m.toString().padStart(2, '0'),
+                    s: s.toString().padStart(2, '0')
+                };
+            };
+
+            const updateTimeState = (h, m, s) => {
+                setHours(h); setMinutes(m); setSeconds(s);
+                if (!isRunning && !isRinging) {
+                    const newTotal = calculateTotalSeconds(h, m, s);
+                    setTimeLeft(newTotal);
+                    setInitialTime(newTotal);
+                }
+            };
+
+            const handleInputChange = (type, val) => {
+                let v = parseInt(val); if (isNaN(v)) v = 0;
+                let newH = hours, newM = minutes, newS = seconds;
+                if (type === 'h') { if (v > 24) v = 24; if (v < 0) v = 0; newH = v; }
+                if (type === 'm') { if (v > 59) v = 59; if (v < 0) v = 0; newM = v; }
+                if (type === 's') { if (v > 59) v = 59; if (v < 0) v = 0; newS = v; }
+                updateTimeState(newH, newM, newS);
+            };
+
+            const adjustTime = (type, amount) => {
+                let newH = hours, newM = minutes, newS = seconds;
+                if (type === 'h') { newH += amount; if (newH > 24) newH = 0; if (newH < 0) newH = 24; }
+                if (type === 'm') { newM += amount; if (newM > 59) newM = 0; if (newM < 0) newM = 59; }
+                if (type === 's') { newS += amount; if (newS > 59) newS = 0; if (newS < 0) newS = 59; }
+                updateTimeState(newH, newM, newS);
+            };
+
+            const handleFileChange = (e) => { if (e.target.files && e.target.files[0]) setCustomFile(e.target.files[0]); };
+
+            useEffect(() => {
+                if (isRunning && timeLeft > 0) {
+                    timerRef.current = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+                } else if (timeLeft === 0 && isRunning) {
+                    setIsRunning(false); setIsRinging(true); clearInterval(timerRef.current);
+                }
+                return () => clearInterval(timerRef.current);
+            }, [isRunning, timeLeft]);
+
+            const playAudioSource = (src) => {
+                if (!src) return;
+                if (src.startsWith('data:audio/wav;base64,UklGRjIAAAB') && src.length < 100) { playTone('preset_coin'); return; }
+                try {
+                    const audio = new Audio(src); audio.loop = true;
+                    audio.play().catch(e => console.log("Audio play failed", e));
+                    customAudioRef.current = audio;
+                } catch (err) { console.error("Error playing audio source", err); }
+            };
+
+            useEffect(() => {
+                if (isRinging) {
+                    if (soundType === 'upload' && customFile) {
+                        playAudioSource(URL.createObjectURL(customFile));
+                    } else {
+                        const preset = CUSTOM_LIBRARY.find(s => s.id === soundType);
+                        if (preset) playAudioSource(preset.url);
+                        else {
+                            playTone(soundType);
+                            alarmIntervalRef.current = setInterval(() => playTone(soundType), 2000);
+                        }
+                    }
+                } else {
+                    if (alarmIntervalRef.current) clearInterval(alarmIntervalRef.current);
+                    if (customAudioRef.current) { customAudioRef.current.pause(); customAudioRef.current = null; }
+                }
+                return () => {
+                    if (alarmIntervalRef.current) clearInterval(alarmIntervalRef.current);
+                    if (customAudioRef.current) { customAudioRef.current.pause(); customAudioRef.current = null; }
+                };
+            }, [isRinging, soundType, customFile]);
+
+            const startTimer = () => {
+                if (isRinging) return;
+                if (timeLeft === 0) {
+                     const newTime = calculateTotalSeconds(hours, minutes, seconds);
+                     if (newTime > 0) { setInitialTime(newTime); setTimeLeft(newTime); setIsRunning(true); }
+                } else setIsRunning(true);
+            };
+            const pauseTimer = () => setIsRunning(false);
+            const resetTimer = () => { setIsRunning(false); setIsRinging(false); const t = calculateTotalSeconds(hours, minutes, seconds); setInitialTime(t); setTimeLeft(t); };
+            const stopAlarm = () => { setIsRinging(false); const t = calculateTotalSeconds(hours, minutes, seconds); setInitialTime(t); setTimeLeft(t); };
+            const previewSound = () => {
+                 if (customAudioRef.current) { customAudioRef.current.pause(); customAudioRef.current = null; }
+                 if (soundType === 'upload' && customFile) {
+                    const audio = new Audio(URL.createObjectURL(customFile)); audio.play(); setTimeout(() => audio.pause(), 3000);
+                 } else {
+                    const preset = CUSTOM_LIBRARY.find(s => s.id === soundType);
+                    if (preset) {
+                         if (preset.url.startsWith('data:audio/wav;base64,UklGRjIAAAB') && preset.url.length < 100) playTone('preset_coin');
+                         else { const audio = new Audio(preset.url); audio.play(); setTimeout(() => audio.pause(), 3000); }
+                    } else playTone(soundType === 'upload' ? 'alarm' : soundType);
+                 }
+            };
+
+            const display = formatDisplay(timeLeft);
+            
+            // Time Formatters for the Header
+            const getFormattedTime = () => {
+                try {
+                    return new Intl.DateTimeFormat('en-US', {
+                        timeZone: timeZone,
+                        hour: 'numeric',
+                        minute: 'numeric',
+                        second: 'numeric',
+                        hour12: true
+                    }).format(currentTime);
+                } catch(e) { return "--:--:--"; }
+            };
+            
+            const getFormattedDate = () => {
+                try {
+                    return new Intl.DateTimeFormat('en-US', {
+                        timeZone: timeZone,
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    }).format(currentTime);
+                } catch(e) { return "---, --- -- ----"; }
+            };
+
+            return (
+                <div className="w-full max-w-2xl glow-box rounded-xl p-4 sm:p-8 relative overflow-hidden flex flex-col gap-6 sm:gap-8 transition-colors duration-300">
+                    <div className="scanline"></div>
+
+                    {/* Top Bar: Updated with Real Time Clock & Dropdowns */}
+                    <div className="flex flex-col border-b-2 theme-border pb-4 z-10 gap-4">
+                        
+                        {/* Upper Row: Status and Theme */}
+                        <div className="flex justify-between items-center text-xs sm:text-sm uppercase font-bold tracking-widest opacity-80">
+                             {/* Theme Picker (Left) */}
+                             <div className="flex items-center gap-2">
+                                <label className="opacity-70">Theme</label>
+                                <select 
+                                    value={currentTheme}
+                                    onChange={(e) => setCurrentTheme(e.target.value)}
+                                    className="bg-black border theme-border uppercase p-1 rounded focus:outline-none cursor-pointer text-xs"
+                                >
+                                    <option value="orange">Orange</option>
+                                    <option value="red">Red</option>
+                                    <option value="green">Green</option>
+                                    <option value="blue">Blue</option>
+                                    <option value="pink">Pink</option>
+                                    <option value="purple">Purple</option>
+                                </select>
+                            </div>
+
+                             {/* Status (Right) */}
+                             <div className={`animate-pulse ${isRinging ? 'text-white' : ''}`}>
+                                {isRinging ? "FINISHED" : isRunning ? "RUNNING" : "READY"}
+                             </div>
+                        </div>
+
+                        {/* Middle Row: Real Time Clock (Center) */}
+                        <div className="flex flex-col items-center justify-center gap-1 text-center">
+                            
+                            {/* Timezone Selector */}
+                            <select 
+                                value={timeZone}
+                                onChange={(e) => setTimeZone(e.target.value)}
+                                className="bg-transparent border-none text-xs uppercase tracking-widest opacity-60 focus:outline-none text-center cursor-pointer hover:opacity-100 mb-1"
+                            >
+                                {COMMON_TIMEZONES.map(tz => (
+                                    <option key={tz} value={tz}>{tz.replace('_', ' ')}</option>
+                                ))}
+                            </select>
+
+                            {/* Current Time */}
+                            <div className="text-3xl sm:text-4xl font-bold leading-none glow-text tracking-widest">
+                                {getFormattedTime()}
+                            </div>
+                            
+                            {/* Current Date */}
+                            <div className="text-sm uppercase tracking-widest opacity-70">
+                                {getFormattedDate()}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main Pomodoro Clock Display */}
+                    <div className={`relative z-10 inner-box p-4 sm:p-6 rounded text-center transition-all ${isRinging ? 'bg-white/10' : ''}`}>
+                         <div className={`flex justify-center items-center text-5xl sm:text-7xl font-bold leading-none tracking-wider tabular-nums ${isRinging ? 'animate-pulse' : 'glow-text'}`}>
+                            {/* Fixed width containers for digits to anchor them */}
+                            <div className="w-[1.8ch] flex justify-center">{display.h}</div>
+                            <div className="pb-2 px-1">:</div>
+                            <div className="w-[1.8ch] flex justify-center">{display.m}</div>
+                            <div className="pb-2 px-1">:</div>
+                            <div className="w-[1.8ch] flex justify-center">{display.s}</div>
+                         </div>
+                    </div>
+
+                    <div className="z-10 flex flex-col gap-6 sm:gap-8">
+                        {/* Time Controls */}
+                        <div className="flex flex-col gap-4">
+                            <label className="text-lg sm:text-xl font-bold uppercase tracking-widest opacity-80 border-b theme-border pb-1">Set Duration</label>
+                            <div className="flex justify-between gap-1 sm:gap-4">
+                                {['h', 'm', 's'].map((unit, idx) => (
+                                    <React.Fragment key={unit}>
+                                        <div className="flex flex-col items-center gap-1 w-full">
+                                            <button onClick={() => adjustTime(unit, 1)} className="btn-digital w-full py-2 text-xl">▲</button>
+                                            <input 
+                                                type="number" 
+                                                value={unit === 'h' ? hours : unit === 'm' ? minutes : seconds}
+                                                onChange={(e) => handleInputChange(unit, e.target.value)}
+                                                className="w-full bg-black border-2 theme-border text-center text-2xl sm:text-4xl font-bold p-2 rounded"
+                                            />
+                                            <button onClick={() => adjustTime(unit, -1)} className="btn-digital w-full py-2 text-xl">▼</button>
+                                            <span className="text-sm sm:text-lg font-bold uppercase opacity-60 mt-1">
+                                                {unit === 'h' ? 'HR' : unit === 'm' ? 'MIN' : 'SEC'}
+                                            </span>
+                                        </div>
+                                        {idx < 2 && <div className="text-2xl sm:text-4xl font-bold self-center pt-2">:</div>}
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Sound & Actions */}
+                        <div className="flex flex-col gap-4">
+                            <div>
+                                <label className="text-lg sm:text-xl font-bold uppercase tracking-widest opacity-80 block mb-2 border-b theme-border pb-1">Alarm Sound</label>
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex gap-2">
+                                        <select 
+                                            value={soundType}
+                                            onChange={(e) => setSoundType(e.target.value)}
+                                            className="w-full text-xl font-bold uppercase p-2 border-2 rounded bg-black theme-border focus:outline-none"
+                                        >
+                                            <optgroup label="Synthesized">
+                                                <option value="alarm">ALARM</option>
+                                                <option value="digital">DIGITAL</option>
+                                                <option value="chime">CHIME</option>
+                                                <option value="zen">ZEN</option>
+                                                <option value="retro">RETRO</option>
+                                            </optgroup>
+                                            <optgroup label="Built-in Custom">
+                                                {CUSTOM_LIBRARY.map(sound => (
+                                                    <option key={sound.id} value={sound.id}>{sound.name.toUpperCase()}</option>
+                                                ))}
+                                            </optgroup>
+                                            <optgroup label="User">
+                                                <option value="upload">UPLOAD FILE...</option>
+                                            </optgroup>
+                                        </select>
+                                        <button onClick={previewSound} className="btn-digital w-16 text-2xl font-bold rounded">♪</button>
+                                    </div>
+                                    
+                                    {soundType === 'upload' && (
+                                        <div className="animate-fade-in mt-2 p-2 border theme-border rounded bg-white/5">
+                                            <label className="block text-xs uppercase mb-1 opacity-70">Select Audio File (MP3/WAV)</label>
+                                            <input type="file" accept="audio/*" onChange={handleFileChange} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-white/20 file:text-white hover:file:bg-white/30 cursor-pointer theme-border" />
+                                            {customFile && <div className="text-xs mt-1 opacity-80">✓ {customFile.name} loaded</div>}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 mt-2">
+                                {isRinging ? (
+                                    <button onClick={stopAlarm} className="col-span-2 btn-digital py-4 text-2xl sm:text-3xl font-bold animate-pulse border-4 rounded">STOP ALARM</button>
+                                ) : (
+                                    <>
+                                        {!isRunning ? (
+                                            <button onClick={startTimer} className="btn-digital py-4 text-xl sm:text-2xl font-bold rounded">START</button>
+                                        ) : (
+                                            <button onClick={pauseTimer} className="btn-digital py-4 text-xl sm:text-2xl font-bold rounded bg-white/10">PAUSE</button>
+                                        )}
+                                        <button onClick={resetTimer} className="btn-digital py-4 text-xl sm:text-2xl font-bold opacity-80 hover:opacity-100 rounded">RESET</button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
