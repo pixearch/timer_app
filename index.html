@@ -151,12 +151,22 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
+        const ExpandIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+        );
+
+        const CollapseIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+        );
+
         const CUSTOM_LIBRARY = [
             { id: 'spaceship_ping', name: 'Spaceship Ping', url: 'https://raw.githubusercontent.com/pixearch/timer_app/timer_app/spaceship_ping_alert.WAV' },
             { id: 'anomaly', name: 'Anomaly', url: 'https://raw.githubusercontent.com/pixearch/timer_app/timer_app/Anomaly.WAV' },
             { id: 'big_signal', name: 'Big Signal', url: 'https://raw.githubusercontent.com/pixearch/timer_app/timer_app/Big%20Signal.WAV' },
             { id: 'calm_alert', name: 'Calm Alert', url: 'https://raw.githubusercontent.com/pixearch/timer_app/timer_app/Calm%20Alert.WAV' },
             { id: 'casual', name: 'Casual', url: 'https://raw.githubusercontent.com/pixearch/timer_app/timer_app/Casual.WAV' },
+            { id: 'congrats', name: 'Time Complete - Congrats', url: 'https://raw.githubusercontent.com/pixearch/timer_app/timer_app/Time%20Complete%20-%20Congrats.mp3' },
+            { id: 'break_over', name: 'Break Time Is Over', url: 'https://raw.githubusercontent.com/pixearch/timer_app/timer_app/Break%20Time%20Is%20Over.mp3' }
         ];
 
         const THEMES = {
@@ -198,6 +208,7 @@
             const [isRunning, setIsRunning] = useState(false);
             const [isRinging, setIsRinging] = useState(false);
             const [isLoopMode, setIsLoopMode] = useState(false);
+            const [isFocusMode, setIsFocusMode] = useState(false);
             
             const [soundType, setSoundType] = useState('spaceship_ping');
             const [customFile, setCustomFile] = useState(null);
@@ -407,14 +418,31 @@
             };
 
             const previewSound = () => {
+                 // Stop any currently playing sound (preview or alarm)
                  if (customAudioRef.current) { customAudioRef.current.pause(); customAudioRef.current = null; }
+                 
+                 let src = null;
                  if (soundType === 'upload' && customFile) {
-                    const audio = new Audio(URL.createObjectURL(customFile)); audio.play(); setTimeout(() => audio.pause(), 3000);
+                    src = URL.createObjectURL(customFile);
                  } else {
                     const preset = CUSTOM_LIBRARY.find(s => s.id === soundType);
-                    if (preset) {
-                         const audio = new Audio(preset.url); audio.play(); setTimeout(() => audio.pause(), 3000); 
-                    }
+                    if (preset) src = preset.url;
+                 }
+
+                 if (src) {
+                     const audio = new Audio(src);
+                     // Store ref so we can stop it if clicked again
+                     customAudioRef.current = audio;
+                     audio.play().catch(e => console.log("Preview failed", e));
+                     
+                     // Increased timeout to 10s to ensure longer clips play fully
+                     setTimeout(() => {
+                         // Only pause if this specific audio instance is still the current one
+                         if (customAudioRef.current === audio) {
+                             audio.pause();
+                             customAudioRef.current = null;
+                         }
+                     }, 10000);
                  }
             };
 
@@ -443,79 +471,105 @@
             const display = formatDisplay(activeTimer.timeLeft);
 
             return (
-                <div className="w-full max-w-3xl flex flex-col items-start gap-0">
+                <div className={`w-full ${isFocusMode ? 'h-full flex items-center justify-center' : 'max-w-3xl flex flex-col items-start gap-0'}`}>
                     
                     {/* Tabs Section - Outside the Main Box */}
-                    <div className="w-full flex gap-2 px-4 items-end overflow-x-auto z-0" style={{ marginBottom: '-3px' }}>
-                        {timers.map((tab, idx) => (
-                            <button 
-                                key={tab.id}
-                                onClick={() => setActiveTabIndex(idx)}
-                                className={`tab-btn flex-1 py-4 px-6 rounded-t-lg text-base sm:text-lg font-bold uppercase whitespace-nowrap flex justify-between items-center gap-2 ${idx === activeTabIndex ? 'active' : ''}`}
-                            >
-                                <span className="truncate">{tab.name}</span>
-                                {timers.length > 1 && (
-                                    <span onClick={(e) => removeTab(e, idx)} className="hover:text-red-500 font-bold px-1 ml-2 text-xl">×</span>
-                                )}
-                            </button>
-                        ))}
-                        {timers.length < 4 && (
-                            <button onClick={addTab} className="tab-btn px-6 py-4 rounded-t-lg font-bold text-xl hover:bg-white/10">+</button>
-                        )}
-                    </div>
+                    {!isFocusMode && (
+                        <div className="w-full flex gap-2 px-4 items-end overflow-x-auto z-0" style={{ marginBottom: '-3px' }}>
+                            {timers.map((tab, idx) => (
+                                <button 
+                                    key={tab.id}
+                                    onClick={() => setActiveTabIndex(idx)}
+                                    className={`tab-btn flex-1 py-4 px-6 rounded-t-lg text-base sm:text-lg font-bold uppercase whitespace-nowrap flex justify-between items-center gap-2 ${idx === activeTabIndex ? 'active' : ''}`}
+                                >
+                                    <span className="truncate">{tab.name}</span>
+                                    {timers.length > 1 && (
+                                        <span onClick={(e) => removeTab(e, idx)} className="hover:text-red-500 font-bold px-1 ml-2 text-xl">×</span>
+                                    )}
+                                </button>
+                            ))}
+                            {timers.length < 4 && (
+                                <button onClick={addTab} className="tab-btn px-6 py-4 rounded-t-lg font-bold text-xl hover:bg-white/10">+</button>
+                            )}
+                        </div>
+                    )}
 
                     {/* Main Box */}
-                    <div className="w-full glow-box rounded-xl rounded-tl-none p-6 sm:p-10 relative overflow-hidden flex flex-col gap-8 transition-colors duration-300 z-10">
+                    <div className={`w-full relative overflow-hidden flex flex-col transition-all duration-300 z-10 ${isFocusMode ? 'items-center justify-center p-0 min-h-[50vh]' : 'glow-box rounded-xl rounded-tl-none p-6 sm:p-10 gap-8'}`}>
                         <div className="scanline"></div>
 
+                        {/* Exit Focus Mode Button (Outside scaled box) */}
+                        {isFocusMode && (
+                            <button 
+                                onClick={() => setIsFocusMode(false)}
+                                className="absolute top-6 right-6 z-50 p-2 opacity-50 hover:opacity-100 transition-opacity text-current cursor-pointer bg-black/40 rounded border border-current"
+                                title="Exit Focus Mode"
+                            >
+                                <CollapseIcon />
+                            </button>
+                        )}
+
                         {/* Top Bar: Theme, Status, Clock */}
-                        <div className="flex flex-col border-b-4 theme-border pb-6 z-10 gap-4">
-                            <div className="flex justify-between items-center text-base sm:text-lg uppercase font-bold tracking-widest opacity-80">
-                                <div className="flex items-center gap-2">
-                                    <label className="opacity-80 font-bold">Theme</label>
-                                    <select value={currentTheme} onChange={(e) => setCurrentTheme(e.target.value)} className="bg-black border-2 theme-border uppercase p-2 rounded focus:outline-none cursor-pointer text-base">
-                                        {Object.keys(THEMES).map(k => <option key={k} value={k}>{k}</option>)}
+                        {!isFocusMode && (
+                            <div className="flex flex-col border-b-4 theme-border pb-6 z-10 gap-4">
+                                <div className="flex justify-between items-center text-base sm:text-lg uppercase font-bold tracking-widest opacity-80">
+                                    <div className="flex items-center gap-2">
+                                        <label className="opacity-80 font-bold">Theme</label>
+                                        <select value={currentTheme} onChange={(e) => setCurrentTheme(e.target.value)} className="bg-black border-2 theme-border uppercase p-2 rounded focus:outline-none cursor-pointer text-base">
+                                            {Object.keys(THEMES).map(k => <option key={k} value={k}>{k}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className={`animate-pulse text-lg ${isRinging ? 'text-white' : ''}`}>
+                                        {isRinging ? "FINISHED" : isRunning ? "RUNNING" : "READY"}
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-center justify-center gap-2 text-center">
+                                    <select value={timeZone} onChange={(e) => setTimeZone(e.target.value)} className="bg-transparent border-none text-sm uppercase tracking-widest opacity-80 focus:outline-none text-center cursor-pointer hover:opacity-100 mb-1 font-bold">
+                                        {COMMON_TIMEZONES.map(tz => <option key={tz} value={tz}>{tz.replace('_', ' ')}</option>)}
                                     </select>
-                                </div>
-                                <div className={`animate-pulse text-lg ${isRinging ? 'text-white' : ''}`}>
-                                    {isRinging ? "FINISHED" : isRunning ? "RUNNING" : "READY"}
+                                    <div className="text-4xl sm:text-6xl font-bold leading-none glow-text tracking-widest">{getFormattedTime()}</div>
+                                    <div className="text-lg uppercase tracking-widest opacity-80 font-bold">{getFormattedDate()}</div>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-center justify-center gap-2 text-center">
-                                <select value={timeZone} onChange={(e) => setTimeZone(e.target.value)} className="bg-transparent border-none text-sm uppercase tracking-widest opacity-80 focus:outline-none text-center cursor-pointer hover:opacity-100 mb-1 font-bold">
-                                    {COMMON_TIMEZONES.map(tz => <option key={tz} value={tz}>{tz.replace('_', ' ')}</option>)}
-                                </select>
-                                <div className="text-4xl sm:text-6xl font-bold leading-none glow-text tracking-widest">{getFormattedTime()}</div>
-                                <div className="text-lg uppercase tracking-widest opacity-80 font-bold">{getFormattedDate()}</div>
-                            </div>
-                        </div>
+                        )}
 
                         {/* Mode Toggle & Name Edit */}
-                        <div className="z-10 flex justify-between items-center">
-                            <div className="flex flex-col">
-                                <label className="text-sm uppercase opacity-80 font-bold mb-1">Timer Name</label>
-                                <input 
-                                    type="text" 
-                                    value={activeTimer.name}
-                                    onChange={handleNameChange}
-                                    className="bg-transparent border-b-2 theme-border text-xl font-bold uppercase focus:outline-none w-48 sm:w-64"
-                                />
-                            </div>
-
-                            <button 
-                                onClick={() => setIsLoopMode(!isLoopMode)}
-                                className={`flex items-center gap-3 px-4 py-2 rounded border-2 theme-border transition-all ${isLoopMode ? 'bg-white/20 shadow-[0_0_10px_var(--theme-glow)]' : 'opacity-60'}`}
-                            >
-                                <span className="text-3xl">∞</span>
-                                <div className="flex flex-col items-start leading-none">
-                                    <span className="text-xs font-bold">LOOP</span>
-                                    <span className="text-xs font-bold">{isLoopMode ? 'ON' : 'OFF'}</span>
+                        {!isFocusMode && (
+                            <div className="z-10 flex justify-between items-center">
+                                <div className="flex flex-col">
+                                    <label className="text-sm uppercase opacity-80 font-bold mb-1">Timer Name</label>
+                                    <input 
+                                        type="text" 
+                                        value={activeTimer.name}
+                                        onChange={handleNameChange}
+                                        className="bg-transparent border-b-2 theme-border text-xl font-bold uppercase focus:outline-none w-48 sm:w-64"
+                                    />
                                 </div>
-                            </button>
-                        </div>
+
+                                <button 
+                                    onClick={() => setIsLoopMode(!isLoopMode)}
+                                    className={`flex items-center gap-3 px-4 py-2 rounded border-2 theme-border transition-all ${isLoopMode ? 'bg-white/20 shadow-[0_0_10px_var(--theme-glow)]' : 'opacity-60'}`}
+                                >
+                                    <span className="text-3xl">∞</span>
+                                    <div className="flex flex-col items-start leading-none">
+                                        <span className="text-xs font-bold">LOOP</span>
+                                        <span className="text-xs font-bold">{isLoopMode ? 'ON' : 'OFF'}</span>
+                                    </div>
+                                </button>
+                            </div>
+                        )}
 
                         {/* Main Clock */}
-                        <div className={`relative z-10 inner-box p-6 sm:p-10 rounded text-center transition-all ${isRinging ? 'bg-white/10' : ''}`}>
+                        <div className={`relative z-10 transition-all duration-500 ${isFocusMode ? 'scale-[1.7] p-8 rounded-xl border-2 theme-border bg-black' : 'inner-box p-6 sm:p-10 rounded bg-black/40'} text-center ${isRinging && !isFocusMode ? 'bg-white/10' : ''}`}>
+                            {!isFocusMode && (
+                                <button 
+                                    onClick={() => setIsFocusMode(true)}
+                                    className="absolute top-2 right-2 p-1 opacity-40 hover:opacity-100 transition-opacity z-50 text-current cursor-pointer"
+                                    title="Enter Focus Mode"
+                                >
+                                    <ExpandIcon />
+                                </button>
+                            )}
                             <div className={`flex justify-center items-center text-6xl sm:text-8xl font-bold leading-none tracking-wider tabular-nums ${isRinging ? 'animate-pulse' : 'glow-text'}`}>
                                 <div className="w-[1.8ch] flex justify-center">{display.h}</div>
                                 <div className="pb-2 px-1">:</div>
@@ -526,63 +580,65 @@
                         </div>
 
                         {/* Controls */}
-                        <div className="z-10 flex flex-col gap-8">
-                            <div className="flex flex-col gap-4">
-                                <label className="text-2xl font-bold uppercase opacity-80 border-b-2 theme-border pb-2">Set Duration</label>
-                                <div className="flex justify-between gap-2 sm:gap-6">
-                                    {['h', 'm', 's'].map((unit, idx) => (
-                                        <React.Fragment key={unit}>
-                                            <div className="flex flex-col items-center gap-2 w-full">
-                                                <button onClick={() => adjustTime(unit, 1)} className="btn-digital w-full py-2 text-2xl font-bold">▲</button>
-                                                <input type="number" value={activeTimer[unit]} onChange={(e) => handleInputChange(unit, e.target.value)} className="w-full bg-black border-2 theme-border text-center text-3xl sm:text-5xl font-bold p-2 rounded" />
-                                                <button onClick={() => adjustTime(unit, -1)} className="btn-digital w-full py-2 text-2xl font-bold">▼</button>
-                                                <span className="text-lg font-bold uppercase opacity-80 mt-1">{unit === 'h' ? 'HR' : unit === 'm' ? 'MIN' : 'SEC'}</span>
-                                            </div>
-                                            {idx < 2 && <div className="text-4xl font-bold self-center pt-2">:</div>}
-                                        </React.Fragment>
-                                    ))}
+                        {!isFocusMode && (
+                            <div className="z-10 flex flex-col gap-8">
+                                <div className="flex flex-col gap-4">
+                                    <label className="text-2xl font-bold uppercase opacity-80 border-b-2 theme-border pb-2">Set Duration</label>
+                                    <div className="flex justify-between gap-2 sm:gap-6">
+                                        {['h', 'm', 's'].map((unit, idx) => (
+                                            <React.Fragment key={unit}>
+                                                <div className="flex flex-col items-center gap-2 w-full">
+                                                    <button onClick={() => adjustTime(unit, 1)} className="btn-digital w-full py-2 text-2xl font-bold">▲</button>
+                                                    <input type="number" value={activeTimer[unit]} onChange={(e) => handleInputChange(unit, e.target.value)} className="w-full bg-black border-2 theme-border text-center text-3xl sm:text-5xl font-bold p-2 rounded" />
+                                                    <button onClick={() => adjustTime(unit, -1)} className="btn-digital w-full py-2 text-2xl font-bold">▼</button>
+                                                    <span className="text-lg font-bold uppercase opacity-80 mt-1">{unit === 'h' ? 'HR' : unit === 'm' ? 'MIN' : 'SEC'}</span>
+                                                </div>
+                                                {idx < 2 && <div className="text-4xl font-bold self-center pt-2">:</div>}
+                                            </React.Fragment>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex gap-4 items-end">
+                                        <div className="flex-grow">
+                                            <label className="text-2xl font-bold uppercase opacity-80 block mb-2 border-b-2 theme-border pb-2">Alarm Sound</label>
+                                            <select value={soundType} onChange={(e) => setSoundType(e.target.value)} className="w-full text-xl font-bold uppercase p-3 border-2 rounded bg-black theme-border focus:outline-none">
+                                                <optgroup label="Default">
+                                                    {CUSTOM_LIBRARY.map(sound => <option key={sound.id} value={sound.id}>{sound.name.toUpperCase()}</option>)}
+                                                </optgroup>
+                                                <optgroup label="User">
+                                                    <option value="upload">UPLOAD FILE...</option>
+                                                </optgroup>
+                                            </select>
+                                        </div>
+                                        <button onClick={previewSound} className="btn-digital w-16 h-[54px] text-3xl font-bold rounded mb-[1px]">♪</button>
+                                    </div>
+                                    {soundType === 'upload' && (
+                                        <div className="animate-fade-in p-4 border-2 theme-border rounded bg-white/5">
+                                            <input type="file" accept="audio/*" onChange={handleFileChange} className="block w-full text-sm font-bold file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-white/20 file:text-white hover:file:bg-white/30 theme-border cursor-pointer" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-6">
+                                    {isRinging ? (
+                                        <button onClick={stopAlarm} className="col-span-2 btn-digital py-6 text-3xl sm:text-4xl font-bold animate-pulse border-4 rounded">
+                                            {isLoopMode ? "NEXT TIMER >>" : "STOP ALARM"}
+                                        </button>
+                                    ) : (
+                                        <>
+                                            {!isRunning ? (
+                                                <button onClick={startTimer} className="btn-digital py-5 text-2xl font-bold rounded">START</button>
+                                            ) : (
+                                                <button onClick={pauseTimer} className="btn-digital py-5 text-2xl font-bold rounded bg-white/10">PAUSE</button>
+                                            )}
+                                            <button onClick={resetTimer} className="btn-digital py-5 text-2xl font-bold opacity-80 hover:opacity-100 rounded">RESET</button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
-
-                            <div className="flex flex-col gap-4">
-                                <div className="flex gap-4 items-end">
-                                    <div className="flex-grow">
-                                        <label className="text-2xl font-bold uppercase opacity-80 block mb-2 border-b-2 theme-border pb-2">Alarm Sound</label>
-                                        <select value={soundType} onChange={(e) => setSoundType(e.target.value)} className="w-full text-xl font-bold uppercase p-3 border-2 rounded bg-black theme-border focus:outline-none">
-                                            <optgroup label="Default">
-                                                {CUSTOM_LIBRARY.map(sound => <option key={sound.id} value={sound.id}>{sound.name.toUpperCase()}</option>)}
-                                            </optgroup>
-                                            <optgroup label="User">
-                                                <option value="upload">UPLOAD FILE...</option>
-                                            </optgroup>
-                                        </select>
-                                    </div>
-                                    <button onClick={previewSound} className="btn-digital w-16 h-[54px] text-3xl font-bold rounded mb-[1px]">♪</button>
-                                </div>
-                                {soundType === 'upload' && (
-                                    <div className="animate-fade-in p-4 border-2 theme-border rounded bg-white/5">
-                                        <input type="file" accept="audio/*" onChange={handleFileChange} className="block w-full text-sm font-bold file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-white/20 file:text-white hover:file:bg-white/30 theme-border cursor-pointer" />
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-6">
-                                {isRinging ? (
-                                    <button onClick={stopAlarm} className="col-span-2 btn-digital py-6 text-3xl sm:text-4xl font-bold animate-pulse border-4 rounded">
-                                        {isLoopMode ? "NEXT TIMER >>" : "STOP ALARM"}
-                                    </button>
-                                ) : (
-                                    <>
-                                        {!isRunning ? (
-                                            <button onClick={startTimer} className="btn-digital py-5 text-2xl font-bold rounded">START</button>
-                                        ) : (
-                                            <button onClick={pauseTimer} className="btn-digital py-5 text-2xl font-bold rounded bg-white/10">PAUSE</button>
-                                        )}
-                                        <button onClick={resetTimer} className="btn-digital py-5 text-2xl font-bold opacity-80 hover:opacity-100 rounded">RESET</button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             );
