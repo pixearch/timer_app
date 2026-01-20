@@ -185,6 +185,14 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
         );
 
+        const EyeIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        );
+
+        const EyeOffIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+        );
+
         const ChevronRight = () => (
              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         );
@@ -238,28 +246,14 @@
         };
 
         // --- ToDo List Component ---
-        const TodoList = ({ isOpen, closeSidebar }) => {
-            const [listTitle, setListTitle] = useState('GOALS LIST');
+        const TodoList = ({ isOpen, closeSidebar, items, setItems, listTitle, setListTitle }) => {
             const [isEditingTitle, setIsEditingTitle] = useState(false);
-            const [items, setItems] = useState([]);
             const [newItemText, setNewItemText] = useState('');
             const [editingItemId, setEditingItemId] = useState(null);
             const [editItemText, setEditItemText] = useState('');
             const [draggedItem, setDraggedItem] = useState(null);
 
-            // Load from local storage
-            useEffect(() => {
-                const savedItems = localStorage.getItem('pomodoro_todo_items');
-                const savedTitle = localStorage.getItem('pomodoro_todo_title');
-                if (savedItems) setItems(JSON.parse(savedItems));
-                if (savedTitle) setListTitle(savedTitle);
-            }, []);
-
-            // Save to local storage
-            useEffect(() => {
-                localStorage.setItem('pomodoro_todo_items', JSON.stringify(items));
-                localStorage.setItem('pomodoro_todo_title', listTitle);
-            }, [items, listTitle]);
+            // Removed internal state for items/title, now received as props to share with main App
 
             const addItem = () => {
                 if (!newItemText.trim()) return;
@@ -290,8 +284,8 @@
                     setEditingItemId(null);
                 }
             };
-
-            // --- Drag and Drop Handlers ---
+            
+            // ... Drag handlers ...
             const handleDragStart = (e, item) => {
                 setDraggedItem(item);
                 e.dataTransfer.effectAllowed = 'move';
@@ -300,19 +294,12 @@
             const handleDragOver = (e, targetItem) => {
                 e.preventDefault();
                 if (!draggedItem || draggedItem.id === targetItem.id) return;
-                
-                // Only reorder within the same group (active vs completed)
                 if (draggedItem.completed !== targetItem.completed) return;
-
                 const newItems = [...items];
                 const draggedIndex = newItems.findIndex(i => i.id === draggedItem.id);
                 const targetIndex = newItems.findIndex(i => i.id === targetItem.id);
-
-                // Remove dragged item
                 newItems.splice(draggedIndex, 1);
-                // Insert at new position
                 newItems.splice(targetIndex, 0, draggedItem);
-
                 setItems(newItems);
             };
 
@@ -329,7 +316,7 @@
                     ${isOpen ? 'w-80 ml-6 opacity-100' : 'w-0 ml-0 opacity-0'}
                     glow-box rounded-xl rounded-l-none bg-black
                 `}>
-                    {/* Header - Removed orange border-b-2 */}
+                    {/* Header */}
                     <div className="flex justify-between items-center p-4 bg-white/5">
                         {isEditingTitle ? (
                             <input 
@@ -461,8 +448,28 @@
             const [isRinging, setIsRinging] = useState(false);
             const [isLoopMode, setIsLoopMode] = useState(false);
             const [isFocusMode, setIsFocusMode] = useState(false);
-            const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Sidebar State
+            const [isSidebarOpen, setIsSidebarOpen] = useState(false);
             
+            // --- Shared Todo List State ---
+            const [todoItems, setTodoItems] = useState([]);
+            const [todoTitle, setTodoTitle] = useState('GOALS LIST');
+            const [showTaskInFocus, setShowTaskInFocus] = useState(true); // Toggle visibility of task in focus mode
+            const [focusTaskIndex, setFocusTaskIndex] = useState(0); // Track which task is being viewed
+
+            // Load Todo Data
+            useEffect(() => {
+                const savedItems = localStorage.getItem('pomodoro_todo_items');
+                const savedTitle = localStorage.getItem('pomodoro_todo_title');
+                if (savedItems) setTodoItems(JSON.parse(savedItems));
+                if (savedTitle) setTodoTitle(savedTitle);
+            }, []);
+
+            // Save Todo Data
+            useEffect(() => {
+                localStorage.setItem('pomodoro_todo_items', JSON.stringify(todoItems));
+                localStorage.setItem('pomodoro_todo_title', todoTitle);
+            }, [todoItems, todoTitle]);
+
             const [currentTheme, setCurrentTheme] = useState('orange');
             const [timeZone, setTimeZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
             const [currentTime, setCurrentTime] = useState(new Date());
@@ -471,14 +478,43 @@
             const customAudioRef = useRef(null);
 
             const activeTimer = timers[activeTabIndex];
+            
+            // Get active tasks
+            const activeTasks = todoItems.filter(i => !i.completed);
+            
+            // Ensure focus index is valid (if tasks are deleted or completed)
+            useEffect(() => {
+                if (focusTaskIndex >= activeTasks.length && activeTasks.length > 0) {
+                    setFocusTaskIndex(0);
+                }
+            }, [activeTasks.length, focusTaskIndex]);
+
+            const currentFocusTask = activeTasks[focusTaskIndex];
+
+            const nextTask = () => {
+                if (activeTasks.length === 0) return;
+                setFocusTaskIndex((prev) => (prev + 1) % activeTasks.length);
+            };
+
+            const prevTask = () => {
+                if (activeTasks.length === 0) return;
+                setFocusTaskIndex((prev) => (prev - 1 + activeTasks.length) % activeTasks.length);
+            };
+
+            const toggleTaskCompletion = (id) => {
+                 setTodoItems(todoItems.map(item => 
+                    item.id === id ? { ...item, completed: !item.completed } : item
+                ));
+            };
 
             // --- Focus Mode Logic ---
             const toggleFocusMode = () => {
                 const newMode = !isFocusMode;
                 setIsFocusMode(newMode);
-                if (newMode) setIsSidebarOpen(false); // Close sidebar on focus
+                if (newMode) setIsSidebarOpen(false); 
             };
-
+            
+            // ... (Rest of useEffects for Resize, Time, Theme, Timer Logic) ...
             // --- Dynamic Scaling Hook ---
             useEffect(() => {
                 const handleResize = () => {
@@ -748,7 +784,7 @@
             const display = formatDisplay(activeTimer.timeLeft);
 
             return (
-                <div className={`w-full ${isFocusMode ? 'h-full flex items-center justify-center' : 'max-w-6xl flex flex-col items-start'}`}>
+                <div className={`w-full ${isFocusMode ? 'h-full flex items-center justify-center' : 'flex flex-col items-center'}`}>
                     
                     {/* Tabs Section - Outside the Main Box */}
                     {!isFocusMode && (
@@ -772,12 +808,12 @@
                     )}
 
                     {/* Content Container (Timer + Sidebar) */}
-                    <div className="flex flex-row relative items-stretch">
+                    <div className={`relative w-full ${isFocusMode ? 'h-full' : 'max-w-3xl'}`}>
                         
                         {/* Main Timer Box */}
                         <div className={`
-                            relative flex flex-col transition-all duration-300 z-10 
-                            ${isFocusMode ? 'w-full items-center justify-center p-0 min-h-[50vh]' : 'w-full max-w-3xl glow-box rounded-xl p-6 sm:p-10 gap-8'}
+                            relative transition-all duration-300 z-10 
+                            ${isFocusMode ? 'w-full h-full' : 'w-full flex flex-col glow-box rounded-xl p-6 sm:p-10 gap-8'}
                         `}>
                             <div className="scanline"></div>
 
@@ -790,17 +826,6 @@
                                     style={{ height: '60px' }}
                                 >
                                     <ChevronRight />
-                                </button>
-                            )}
-
-                            {/* Exit Focus Mode Button (Outside scaled box) */}
-                            {isFocusMode && (
-                                <button 
-                                    onClick={toggleFocusMode}
-                                    className="absolute top-6 right-6 z-50 p-2 opacity-50 hover:opacity-100 transition-opacity text-current cursor-pointer bg-black/40 rounded border border-current"
-                                    title="Exit Focus Mode"
-                                >
-                                    <CollapseIcon />
                                 </button>
                             )}
 
@@ -862,7 +887,14 @@
                             )}
 
                             {/* Main Clock */}
-                            <div className={`relative z-10 transition-all duration-500 ${isFocusMode ? 'scale-[1.7] p-8 rounded-xl border-2 theme-border bg-black' : 'inner-box p-6 sm:p-10 rounded bg-black/40'} text-center ${isRinging && !isFocusMode ? 'bg-white/10' : ''}`}>
+                            <div className={`
+                                transition-all duration-500 z-10 
+                                ${isFocusMode 
+                                    ? 'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-[1.7] p-8 rounded-xl border-2 theme-border bg-black' 
+                                    : 'relative inner-box p-6 sm:p-10 rounded bg-black/40'} 
+                                text-center ${isRinging && !isFocusMode ? 'bg-white/10' : ''}
+                            `}>
+                                {/* Enter Focus Mode Button */}
                                 {!isFocusMode && (
                                     <button 
                                         onClick={toggleFocusMode}
@@ -872,6 +904,30 @@
                                         <ExpandIcon />
                                     </button>
                                 )}
+
+                                {/* Exit Focus Mode & Task Toggle - ANCHORED TO CLOCK BUT MOVED OUTSIDE */}
+                                {isFocusMode && (
+                                    <div className="absolute top-0 -right-32 z-50 flex flex-col gap-3 scale-[0.59] origin-top-left">
+                                        <button 
+                                            onClick={toggleFocusMode}
+                                            className="p-3 opacity-20 hover:opacity-100 transition-opacity text-current cursor-pointer bg-black rounded border-2 border-current shadow-[0_0_15px_rgba(0,0,0,0.5)]"
+                                            title="Exit Focus Mode"
+                                        >
+                                            <CollapseIcon />
+                                        </button>
+                                        
+                                        {currentFocusTask && (
+                                            <button 
+                                                onClick={() => setShowTaskInFocus(!showTaskInFocus)}
+                                                className="p-3 opacity-20 hover:opacity-100 transition-opacity text-current cursor-pointer bg-black rounded border-2 border-current shadow-[0_0_15px_rgba(0,0,0,0.5)]"
+                                                title={showTaskInFocus ? "Hide Task" : "Show Task"}
+                                            >
+                                                {showTaskInFocus ? <EyeIcon /> : <EyeOffIcon />}
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className={`flex justify-center items-center text-6xl sm:text-8xl font-bold leading-none tracking-wider tabular-nums ${isRinging ? 'animate-pulse' : 'glow-text'}`}>
                                     <div className="w-[1.8ch] flex justify-center">{display.h}</div>
                                     {/* Increased padding-bottom (pb-4) to lift the colon higher */}
@@ -882,6 +938,43 @@
                                     <div className="w-[1.8ch] flex justify-center">{display.s}</div>
                                 </div>
                             </div>
+                            
+                            {/* Focus Mode Task Display - ABSOLUTE POSITIONED BELOW CLOCK */}
+                            {isFocusMode && currentFocusTask && showTaskInFocus && (
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 mt-[200px] z-20 w-full max-w-2xl animate-fade-in flex flex-col items-center gap-2">
+                                     <div className="text-xs uppercase opacity-50 font-bold tracking-widest">CURRENT FOCUS</div>
+                                     
+                                     <div className="flex items-center gap-4 w-full justify-center px-4">
+                                         {/* Left Arrow */}
+                                         <button 
+                                            onClick={prevTask} 
+                                            className="p-3 hover:bg-white/10 rounded-full transition-colors opacity-50 hover:opacity-100"
+                                            title="Previous Task"
+                                         >
+                                             <ChevronLeft />
+                                         </button>
+
+                                         <div className="flex-1 flex items-center gap-4 bg-black/80 border-2 theme-border rounded-lg p-4 shadow-[0_0_15px_rgba(0,0,0,0.5)] max-w-md">
+                                             <input 
+                                                type="checkbox" 
+                                                checked={currentFocusTask.completed} 
+                                                onChange={() => toggleTaskCompletion(currentFocusTask.id)}
+                                                className="cyber-checkbox shrink-0 scale-125 cursor-pointer"
+                                            />
+                                            <span className="text-xl sm:text-2xl font-bold uppercase truncate flex-1 text-left">{currentFocusTask.text}</span>
+                                         </div>
+
+                                         {/* Right Arrow */}
+                                         <button 
+                                            onClick={nextTask} 
+                                            className="p-3 hover:bg-white/10 rounded-full transition-colors opacity-50 hover:opacity-100"
+                                            title="Next Task"
+                                         >
+                                             <ChevronRight />
+                                         </button>
+                                     </div>
+                                </div>
+                            )}
 
                             {/* Controls */}
                             {!isFocusMode && (
@@ -953,8 +1046,19 @@
                             )}
                         </div>
                         
-                        {/* Slide-out Sidebar */}
-                        {!isFocusMode && <TodoList isOpen={isSidebarOpen} closeSidebar={() => setIsSidebarOpen(false)} />}
+                        {/* Slide-out Sidebar - Absolute Positioned */}
+                        {!isFocusMode && (
+                            <div className="absolute top-0 left-full h-full flex">
+                                <TodoList 
+                                    isOpen={isSidebarOpen} 
+                                    closeSidebar={() => setIsSidebarOpen(false)} 
+                                    items={todoItems}
+                                    setItems={setTodoItems}
+                                    listTitle={todoTitle}
+                                    setListTitle={setTodoTitle}
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
             );
