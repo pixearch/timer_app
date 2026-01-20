@@ -119,9 +119,29 @@
 
         const CUSTOM_LIBRARY = [
             { 
-                id: 'preset_coin', 
-                name: 'Example: 8-Bit Coin', 
-                url: 'data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAAABmYWN0BAAAAAAAAABkYXRhAAAAAA==' 
+                id: 'spaceship_ping', 
+                name: 'Spaceship Ping', 
+                url: 'https://raw.githubusercontent.com/pixearch/timer_app/timer_app/spaceship_ping_alert.WAV' 
+            },
+            { 
+                id: 'anomaly', 
+                name: 'Anomaly', 
+                url: 'https://raw.githubusercontent.com/pixearch/timer_app/timer_app/Anomaly.WAV' 
+            },
+            { 
+                id: 'big_signal', 
+                name: 'Big Signal', 
+                url: 'https://raw.githubusercontent.com/pixearch/timer_app/timer_app/Big%20Signal.WAV' 
+            },
+            { 
+                id: 'calm_alert', 
+                name: 'Calm Alert', 
+                url: 'https://raw.githubusercontent.com/pixearch/timer_app/timer_app/Calm%20Alert.WAV' 
+            },
+            { 
+                id: 'casual', 
+                name: 'Casual', 
+                url: 'https://raw.githubusercontent.com/pixearch/timer_app/timer_app/Casual.WAV' 
             },
         ];
 
@@ -194,53 +214,6 @@
             'Pacific/Fiji'
         ];
 
-        // --- Audio Engine ---
-        const audioCtxRef = { current: null };
-        const getAudioContext = () => {
-            if (!audioCtxRef.current) {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (AudioContext) audioCtxRef.current = new AudioContext();
-            }
-            return audioCtxRef.current;
-        };
-
-        const playTone = (type) => {
-            const ctx = getAudioContext();
-            if (!ctx) return;
-            if (ctx.state === 'suspended') ctx.resume();
-            const now = ctx.currentTime;
-            
-            const osc = (freq, type, start, dur, vol = 0.5) => {
-                const o = ctx.createOscillator();
-                const g = ctx.createGain();
-                o.type = type;
-                o.frequency.setValueAtTime(freq, start);
-                g.gain.setValueAtTime(vol, start);
-                g.gain.exponentialRampToValueAtTime(0.01, start + dur);
-                o.connect(g);
-                g.connect(ctx.destination);
-                o.start(start);
-                o.stop(start + dur);
-            };
-
-            switch (type) {
-                case 'alarm':
-                    osc(880, 'square', now, 0.1, 0.3); osc(880, 'square', now + 0.15, 0.1, 0.3);
-                    osc(880, 'square', now + 0.3, 0.1, 0.3); osc(880, 'square', now + 0.45, 0.1, 0.3);
-                    break;
-                case 'digital': osc(2000, 'sine', now, 0.1, 0.2); osc(1500, 'sine', now + 0.1, 0.4, 0.2); break;
-                case 'chime': osc(440, 'triangle', now, 1.0, 0.3); osc(554, 'triangle', now, 1.0, 0.3); osc(659, 'triangle', now, 1.0, 0.3); break;
-                case 'zen': osc(200, 'sine', now, 2.0, 0.5); break;
-                case 'retro': 
-                    const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = 'sawtooth';
-                    o.frequency.setValueAtTime(110, now); o.frequency.linearRampToValueAtTime(880, now + 0.5);
-                    g.gain.setValueAtTime(0.3, now); g.gain.linearRampToValueAtTime(0, now + 0.5);
-                    o.connect(g); g.connect(ctx.destination); o.start(now); o.stop(now + 0.5);
-                    break;
-                case 'preset_coin': osc(987, 'square', now, 0.1, 0.1); osc(1318, 'square', now + 0.1, 0.3, 0.1); break;
-            }
-        };
-
         const App = () => {
             const [hours, setHours] = useState(0);
             const [minutes, setMinutes] = useState(25);
@@ -249,7 +222,7 @@
             const [initialTime, setInitialTime] = useState(25 * 60);
             const [isRunning, setIsRunning] = useState(false);
             const [isRinging, setIsRinging] = useState(false);
-            const [soundType, setSoundType] = useState('alarm');
+            const [soundType, setSoundType] = useState('spaceship_ping');
             const [customFile, setCustomFile] = useState(null);
             
             // Theme State
@@ -332,9 +305,9 @@
 
             const playAudioSource = (src) => {
                 if (!src) return;
-                if (src.startsWith('data:audio/wav;base64,UklGRjIAAAB') && src.length < 100) { playTone('preset_coin'); return; }
                 try {
-                    const audio = new Audio(src); audio.loop = true;
+                    const audio = new Audio(src); 
+                    audio.loop = true;
                     audio.play().catch(e => console.log("Audio play failed", e));
                     customAudioRef.current = audio;
                 } catch (err) { console.error("Error playing audio source", err); }
@@ -347,10 +320,6 @@
                     } else {
                         const preset = CUSTOM_LIBRARY.find(s => s.id === soundType);
                         if (preset) playAudioSource(preset.url);
-                        else {
-                            playTone(soundType);
-                            alarmIntervalRef.current = setInterval(() => playTone(soundType), 2000);
-                        }
                     }
                 } else {
                     if (alarmIntervalRef.current) clearInterval(alarmIntervalRef.current);
@@ -379,9 +348,8 @@
                  } else {
                     const preset = CUSTOM_LIBRARY.find(s => s.id === soundType);
                     if (preset) {
-                         if (preset.url.startsWith('data:audio/wav;base64,UklGRjIAAAB') && preset.url.length < 100) playTone('preset_coin');
-                         else { const audio = new Audio(preset.url); audio.play(); setTimeout(() => audio.pause(), 3000); }
-                    } else playTone(soundType === 'upload' ? 'alarm' : soundType);
+                         const audio = new Audio(preset.url); audio.play(); setTimeout(() => audio.pause(), 3000); 
+                    }
                  }
             };
 
@@ -519,14 +487,7 @@
                                             onChange={(e) => setSoundType(e.target.value)}
                                             className="w-full text-xl font-bold uppercase p-2 border-2 rounded bg-black theme-border focus:outline-none"
                                         >
-                                            <optgroup label="Synthesized">
-                                                <option value="alarm">ALARM</option>
-                                                <option value="digital">DIGITAL</option>
-                                                <option value="chime">CHIME</option>
-                                                <option value="zen">ZEN</option>
-                                                <option value="retro">RETRO</option>
-                                            </optgroup>
-                                            <optgroup label="Built-in Custom">
+                                            <optgroup label="Default">
                                                 {CUSTOM_LIBRARY.map(sound => (
                                                     <option key={sound.id} value={sound.id}>{sound.name.toUpperCase()}</option>
                                                 ))}
